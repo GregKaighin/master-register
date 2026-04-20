@@ -48,13 +48,13 @@ The `CFG` object at the top of the script is pre-configured for this spreadsheet
 
 ```javascript
 const CFG = {
-  DAY_NUMBER_ROW:  6,        // Row 6 — day numbers 1…31
-  FIRST_DATA_ROW:  7,        // Row 7 — first pupil row
-  FIRST_DAY_COL:   4,        // Column D — day 1
-  MONTH_CELL:     "AA1",     // Merged cell for month name (e.g. "May")
-  YEAR_CELL:      "AA2",     // Merged cell for year (e.g. "2026")
-  REGISTER_CELL:  "O2",      // "REGISTER" label cell
-  REGISTER_TEXT:  "REGISTER",
+  DAY_NUMBER_ROW: 6,          // Row 6 — day numbers 1…31 (D6:AH6)
+  FIRST_DATA_ROW: 7,          // Row 7 — first pupil row
+  FIRST_DAY_COL:  4,          // Column D — always day 1
+  MONTH_CELL:    "AA1",       // Merged AA1:AG1 — month name e.g. "May"
+  YEAR_CELL:     "AA2",       // Merged AA2:AG4 — year e.g. "2026"
+  REGISTER_CELL: "O2",        // Merged O2:T2 — "REGISTER" label
+  REGISTER_TEXT: "REGISTER",
 };
 ```
 

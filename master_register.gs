@@ -28,49 +28,40 @@
 // ── Configuration ──────────────────────────────────────────────────────────
 
 const CFG = {
-  // Row numbers (1-indexed)
-  DAY_NUMBER_ROW:  6,     // Row 6 — day numbers 1…31 live here (D6:AH6)
-  FIRST_DATA_ROW:  7,     // Row 7 — first pupil row
-
-  // Column numbers (1-indexed: A=1, B=2, C=3, D=4 …)
-  FIRST_DAY_COL:   4,     // Column D — always day 1
-
-  // Header cells
-  MONTH_CELL:     "AA1",  // Merged AA1:AG1 — month name e.g. "May"
-  YEAR_CELL:      "AA2",  // Merged AA2:AG4 — year e.g. "2026"
-
-  // "REGISTER" label — merged O2:T2
-  REGISTER_CELL:  "O2",
-  REGISTER_TEXT:  "REGISTER",
+  DAY_NUMBER_ROW: 6,          // Row 6 — day numbers 1…31 (D6:AH6)
+  FIRST_DATA_ROW: 7,          // Row 7 — first pupil row
+  FIRST_DAY_COL:  4,          // Column D — always day 1
+  MONTH_CELL:    "AA1",       // Merged AA1:AG1 — month name e.g. "May"
+  YEAR_CELL:     "AA2",       // Merged AA2:AG4 — year e.g. "2026"
+  REGISTER_CELL: "O2",        // Merged O2:T2 — "REGISTER" label
+  REGISTER_TEXT: "REGISTER",
 };
+
+const SOLID = SpreadsheetApp.BorderStyle.SOLID;
 
 // ── Main function (triggered automatically on the 1st) ────────────────────
 
 function createMonthlyTab() {
-  const ss  = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
   const now = new Date();
-  const tz  = ss.getSpreadsheetTimeZone();
-
-  const localDay = parseInt(Utilities.formatDate(now, tz, "d"), 10);
-  if (localDay !== 1) {
+  if (parseInt(Utilities.formatDate(now, ss.getSpreadsheetTimeZone(), "d"), 10) !== 1) {
     Logger.log("Not the 1st in spreadsheet timezone — exiting.");
     return;
   }
-
   _buildNewTab(ss, now);
 }
 
 // ── Core logic ────────────────────────────────────────────────────────────
 
 function _buildNewTab(ss, targetDate) {
-  const tz = ss.getSpreadsheetTimeZone();
+  const tz  = ss.getSpreadsheetTimeZone();
+  const fmt = (f) => Utilities.formatDate(targetDate, tz, f);
 
-  const newTabName  = Utilities.formatDate(targetDate, tz, "yy/MM");
-  const monthName   = Utilities.formatDate(targetDate, tz, "MMMM");
-  const yearStr     = Utilities.formatDate(targetDate, tz, "yyyy");
-  const monthNum    = parseInt(Utilities.formatDate(targetDate, tz, "M"),    10);
-  const yearNum     = parseInt(Utilities.formatDate(targetDate, tz, "yyyy"), 10);
-  const daysInMonth = new Date(yearNum, monthNum, 0).getDate();
+  const newTabName  = fmt("yy/MM");
+  const monthName   = fmt("MMMM");
+  const yearStr     = fmt("yyyy");
+  const monthNum    = parseInt(fmt("M"), 10);
+  const daysInMonth = new Date(+yearStr, monthNum, 0).getDate();
 
   Logger.log(`Building tab: ${newTabName} | ${monthName} ${yearStr} | ${daysInMonth} days`);
 
@@ -89,9 +80,8 @@ function _buildNewTab(ss, targetDate) {
   ss.moveActiveSheet(1);
 
   try {
-    // 1. Determine how many day columns the copied sheet has.
-    //    Count only non-hidden columns — a shorter-month source leaves hidden surplus columns
-    //    that still contain stale data, which would inflate getLastColumn().
+    // 1. Count visible day columns in the source.
+    //    Hidden surplus columns from a shorter-month source must not be counted.
     const prevLastCol = newSheet.getLastColumn();
     let prevDayCols = 0;
     for (let c = CFG.FIRST_DAY_COL; c <= prevLastCol; c++) {
@@ -99,114 +89,88 @@ function _buildNewTab(ss, targetDate) {
       else break;
     }
     if (prevDayCols === 0) prevDayCols = prevLastCol - CFG.FIRST_DAY_COL + 1;
-    Logger.log(`Source has ${prevLastCol} total columns, ${prevDayCols} visible day columns.`);
+    Logger.log(`Source: ${prevLastCol} total columns, ${prevDayCols} visible day columns.`);
+
+    const lastPupilRow  = _lastPupilRow(newSheet);
+    const oldLastDayCol = CFG.FIRST_DAY_COL + prevDayCols - 1;
 
     // 2. Insert columns if new month is longer than the source.
-    //    Insert after the last VISIBLE day column, not prevLastCol, which may include hidden
-    //    surplus columns from a previous shorter month sitting beyond the visible range.
+    //    Insert after the last VISIBLE day column — prevLastCol may include hidden surplus.
     if (daysInMonth > prevDayCols) {
-      const colsToAdd        = daysInMonth - prevDayCols;
-      const lastVisibleDayCol = CFG.FIRST_DAY_COL + prevDayCols - 1;
-      newSheet.insertColumnsAfter(lastVisibleDayCol, colsToAdd);
-      // Copy formatting from the last visible day column to the new columns
-      const numFormatRows = _lastPupilRow(newSheet);
-      newSheet.getRange(1, lastVisibleDayCol, numFormatRows, 1)
+      const colsToAdd = daysInMonth - prevDayCols;
+      newSheet.insertColumnsAfter(oldLastDayCol, colsToAdd);
+      newSheet.getRange(1, oldLastDayCol, lastPupilRow, 1)
               .copyTo(
-                newSheet.getRange(1, lastVisibleDayCol + 1, numFormatRows, colsToAdd),
+                newSheet.getRange(1, oldLastDayCol + 1, lastPupilRow, colsToAdd),
                 SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false
               );
-      newSheet.getRange(CFG.DAY_NUMBER_ROW, lastVisibleDayCol + 1, 1, colsToAdd).setNumberFormat('0');
-      Logger.log(`Inserted ${colsToAdd} column(s) after col ${lastVisibleDayCol}.`);
+      newSheet.getRange(CFG.DAY_NUMBER_ROW, oldLastDayCol + 1, 1, colsToAdd).setNumberFormat('0');
+      Logger.log(`Inserted ${colsToAdd} column(s) after col ${oldLastDayCol}.`);
     }
 
-    // 3. Hide surplus columns if new month is shorter than the source.
-    //    Also clear their content so getLastColumn() stays accurate for future copies.
+    // 3. Hide surplus columns if new month is shorter, and clear their content.
     if (daysInMonth < prevDayCols) {
       const firstHideCol = CFG.FIRST_DAY_COL + daysInMonth;
       const numHide      = prevDayCols - daysInMonth;
       newSheet.hideColumns(firstHideCol, numHide);
-      const clearRows = _lastPupilRow(newSheet) - CFG.DAY_NUMBER_ROW + 1;
-      newSheet.getRange(CFG.DAY_NUMBER_ROW, firstHideCol, clearRows, numHide).clearContent();
+      newSheet.getRange(CFG.DAY_NUMBER_ROW, firstHideCol, lastPupilRow - CFG.DAY_NUMBER_ROW + 1, numHide).clearContent();
       Logger.log(`Hid and cleared ${numHide} surplus column(s) from col ${firstHideCol}.`);
     }
 
-    // 4. Unhide the day columns we need (in case source had hidden columns)
+    // 4. Unhide the day columns we need (in case source had hidden columns).
     newSheet.showColumns(CFG.FIRST_DAY_COL, daysInMonth);
 
-    // 5. Write day numbers 1…N in a single API call
+    // 5. Write day numbers 1…N.
     const dayHeaderRange = newSheet.getRange(CFG.DAY_NUMBER_ROW, CFG.FIRST_DAY_COL, 1, daysInMonth);
-    dayHeaderRange.clearContent();
     dayHeaderRange.setNumberFormat('0');
     dayHeaderRange.setValues([Array.from({ length: daysInMonth }, (_, i) => i + 1)]);
     Logger.log(`Wrote day numbers 1–${daysInMonth}.`);
 
-    // 6. Clear all attendance data
-    const lastPupilRow = _lastPupilRow(newSheet);
-    const numRows      = lastPupilRow - CFG.FIRST_DATA_ROW + 1;
-    newSheet.getRange(CFG.FIRST_DATA_ROW, CFG.FIRST_DAY_COL, numRows, daysInMonth).clearContent();
-    Logger.log(`Cleared attendance: ${numRows} rows × ${daysInMonth} columns.`);
+    // 6. Clear all attendance data.
+    newSheet.getRange(CFG.FIRST_DATA_ROW, CFG.FIRST_DAY_COL, lastPupilRow - CFG.FIRST_DATA_ROW + 1, daysInMonth).clearContent();
+    Logger.log(`Cleared attendance: ${lastPupilRow - CFG.FIRST_DATA_ROW + 1} rows × ${daysInMonth} columns.`);
 
     // 7. Re-merge header ranges that span to the last day column.
-    //    breakApart must reference the FULL old merged range (old last col),
-    //    otherwise Sheets rejects the call with "must select all cells in merged range".
-    const lastDayCol    = CFG.FIRST_DAY_COL + daysInMonth - 1;
-    const lastDayColA1  = columnToLetter(lastDayCol);
-    const oldLastDayCol = CFG.FIRST_DAY_COL + prevDayCols - 1;
-    const oldLastColA1  = columnToLetter(oldLastDayCol);
-    Logger.log(`Last day column: ${lastDayColA1} (col ${lastDayCol}), old: ${oldLastColA1}`);
+    //    breakApart must reference the FULL old merged range; otherwise Sheets rejects the call.
+    const lastDayCol = CFG.FIRST_DAY_COL + daysInMonth - 1;
+    const lastDayA1  = columnToLetter(lastDayCol);
+    const oldLastA1  = columnToLetter(oldLastDayCol);
 
-    [
-      [`AA1`, `1`],   // Month name
-      [`AA2`, `3`],   // Year
-      [`C4`,  `4`],   // "PIANO LESSONS WITH GREG KAIGHIN"
-      [`D5`,  `5`],   // "Lesson Date"
-    ].forEach(([start, row]) => {
-      newSheet.getRange(`${start}:${oldLastColA1}${row}`).breakApart();
-      newSheet.getRange(`${start}:${lastDayColA1}${row}`).merge();
-      Logger.log(`Re-merged: ${start}:${lastDayColA1}${row}`);
+    [["AA1", "1"], ["AA2", "3"], ["C4", "4"], ["D5", "5"]].forEach(([start, row]) => {
+      newSheet.getRange(`${start}:${oldLastA1}${row}`).breakApart();
+      newSheet.getRange(`${start}:${lastDayA1}${row}`).merge();
     });
+    Logger.log(`Re-merged header ranges to column ${lastDayA1}.`);
 
-    // 8. Fix right border on the last day column
+    // 8. Fix borders on the last day column.
     const borderRows = lastPupilRow - CFG.DAY_NUMBER_ROW + 1;
-    const SOLID      = SpreadsheetApp.BorderStyle.SOLID;
 
-    // Remove right border from the old last day column if the month length changed
     if (daysInMonth !== prevDayCols) {
-      const oldLastDayCol = CFG.FIRST_DAY_COL + prevDayCols - 1;
+      // Remove right border from the old last day column.
       newSheet.getRange(CFG.DAY_NUMBER_ROW, oldLastDayCol, borderRows, 1)
               .setBorder(null, null, null, false, null, null, null, null);
-      Logger.log(`Removed right border from old last col: ${columnToLetter(oldLastDayCol)}`);
+      Logger.log(`Removed right border from old last col: ${oldLastA1}`);
 
-      // When inserting, add thin grey left + inner-vertical borders to ALL new columns
+      // Add left + inner-vertical grey borders to all newly inserted columns.
       if (daysInMonth > prevDayCols) {
-        const firstNewCol = CFG.FIRST_DAY_COL + prevDayCols;
+        const firstNewCol = oldLastDayCol + 1;
         const numNewCols  = daysInMonth - prevDayCols;
         newSheet.getRange(CFG.DAY_NUMBER_ROW, firstNewCol, borderRows, numNewCols)
                 .setBorder(null, true, null, null, true, null, '#cccccc', SOLID);
-        Logger.log(`Added thin left/inner borders to new cols ${columnToLetter(firstNewCol)}–${lastDayColA1}`);
+        Logger.log(`Added grey borders to new cols ${columnToLetter(firstNewCol)}–${lastDayA1}`);
       }
     }
 
-    // Apply right border directly to the new last day column (data rows)
+    // Apply right border to the new last day column — data rows and each merged header range.
+    // setBorder on a column slice doesn't reach the right edge of merged cells, so each
+    // merged range must be referenced in full.
     newSheet.getRange(CFG.DAY_NUMBER_ROW, lastDayCol, borderRows, 1)
             .setBorder(null, null, null, true, null, null, '#000000', SOLID);
-    Logger.log(`Applied right border to data rows at: ${lastDayColA1}`);
+    [`AA1:${lastDayA1}1`, `AA2:${lastDayA1}3`, `C4:${lastDayA1}4`, `D5:${lastDayA1}5`]
+      .forEach(addr => newSheet.getRange(addr).setBorder(null, null, null, true, null, null, '#000000', SOLID));
+    Logger.log(`Applied right border at column ${lastDayA1}.`);
 
-    // Apply right border to each merged header range individually.
-    // setBorder on a column slice doesn't reach the right edge of merged cells —
-    // the full merged range must be referenced so Sheets knows which cell owns the border.
-    const hBorder = ['#000000', SpreadsheetApp.BorderStyle.SOLID];
-    [
-      `AA1:${lastDayColA1}1`,
-      `AA2:${lastDayColA1}3`,
-      `C4:${lastDayColA1}4`,
-      `D5:${lastDayColA1}5`,
-    ].forEach(addr => {
-      newSheet.getRange(addr).setBorder(null, null, null, true, null, null, ...hBorder);
-    });
-    Logger.log(`Applied right border to header merged ranges ending at ${lastDayColA1}`);
-
-    // 9. Restore "REGISTER" label and update month/year header
+    // 9. Restore "REGISTER" label and update month/year header.
     newSheet.getRange(CFG.REGISTER_CELL).setValue(CFG.REGISTER_TEXT);
     newSheet.getRange(CFG.MONTH_CELL).clearContent();
     newSheet.getRange(CFG.YEAR_CELL).clearContent();
@@ -219,7 +183,6 @@ function _buildNewTab(ss, targetDate) {
     Logger.log(`✅ Tab "${newTabName}" created successfully.`);
 
   } catch (e) {
-    // Clean up the partial sheet so the spreadsheet isn't left in a broken state
     Logger.log(`❌ Error: ${e.message} — deleting partial tab "${newTabName}".`);
     ss.deleteSheet(newSheet);
     throw e;
@@ -229,11 +192,10 @@ function _buildNewTab(ss, targetDate) {
 // ── Helper: last row containing pupil data (scans column A downward) ─────────
 
 function _lastPupilRow(sheet) {
-  const col    = sheet.getRange(CFG.FIRST_DATA_ROW, 1, sheet.getLastRow() - CFG.FIRST_DATA_ROW + 1, 1)
-                      .getValues();
+  const values = sheet.getRange(CFG.FIRST_DATA_ROW, 1, sheet.getLastRow() - CFG.FIRST_DATA_ROW + 1, 1).getValues();
   let last = CFG.FIRST_DATA_ROW;
-  for (let i = 0; i < col.length; i++) {
-    if (col[i][0] !== '') last = CFG.FIRST_DATA_ROW + i;
+  for (let i = 0; i < values.length; i++) {
+    if (values[i][0] !== '') last = CFG.FIRST_DATA_ROW + i;
   }
   return last;
 }
@@ -241,22 +203,14 @@ function _lastPupilRow(sheet) {
 // ── Helper: find most recent YY/MM tab ────────────────────────────────────────
 
 function _getMostRecentTab(ss, excludeName) {
-  const pattern = /^(\d{2})\/(\d{2})$/;
-  let best = null, bestDate = null;
-
-  ss.getSheets().forEach(sheet => {
-    const name = sheet.getName();
-    if (name === excludeName) return;
-    const m = name.match(pattern);
-    if (m) {
-      const year  = 2000 + parseInt(m[1], 10);
-      const month = parseInt(m[2], 10) - 1;
-      const d     = new Date(year, month, 1);
-      if (!bestDate || d > bestDate) { bestDate = d; best = sheet; }
-    }
-  });
-
-  return best;
+  return ss.getSheets()
+    .filter(s => s.getName() !== excludeName && /^\d{2}\/\d{2}$/.test(s.getName()))
+    .reduce((best, sheet) => {
+      const [yy, mm] = sheet.getName().split('/').map(Number);
+      const d = new Date(2000 + yy, mm - 1, 1);
+      return !best || d > best.d ? { sheet, d } : best;
+    }, null)
+    ?.sheet ?? null;
 }
 
 // ── Helper: convert column number to A1 letter(s) e.g. 27→AA, 34→AH ─────────
@@ -294,13 +248,11 @@ function testCreateTab() {
   const ss  = SpreadsheetApp.getActiveSpreadsheet();
   const tz  = ss.getSpreadsheetTimeZone();
   const now = new Date();
-
-  const currentMonth = parseInt(Utilities.formatDate(now, tz, "M"),    10);
-  const currentYear  = parseInt(Utilities.formatDate(now, tz, "yyyy"), 10);
-  const nextMonth    = currentMonth === 12 ? 1               : currentMonth + 1;
-  const nextYear     = currentMonth === 12 ? currentYear + 1 : currentYear;
-
-  const testDate = new Date(`${nextYear}-${String(nextMonth).padStart(2, '0')}-01T12:00:00`);
+  const m   = parseInt(Utilities.formatDate(now, tz, "M"),    10);
+  const y   = parseInt(Utilities.formatDate(now, tz, "yyyy"), 10);
+  const nm  = m === 12 ? 1     : m + 1;
+  const ny  = m === 12 ? y + 1 : y;
+  const testDate = new Date(`${ny}-${String(nm).padStart(2, '0')}-01T12:00:00`);
   Logger.log(`Test: simulating 1st of ${Utilities.formatDate(testDate, tz, "MMMM yyyy")}`);
   _buildNewTab(ss, testDate);
 }

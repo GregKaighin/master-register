@@ -61,13 +61,13 @@ The `CFG` object is pre-configured for this spreadsheet. Only change it if the l
 
 ```javascript
 const CFG = {
-  DAY_NUMBER_ROW:  6,        // Row containing day numbers 1…31
-  FIRST_DATA_ROW:  7,        // First row with pupil data
-  FIRST_DAY_COL:   4,        // Column number of day 1 (D = 4)
-  MONTH_CELL:     "AA1",     // Cell displaying the month name
-  YEAR_CELL:      "AA2",     // Cell displaying the year
-  REGISTER_CELL:  "O2",      // Cell containing the "REGISTER" label
-  REGISTER_TEXT:  "REGISTER",
+  DAY_NUMBER_ROW: 6,          // Row 6 — day numbers 1…31 (D6:AH6)
+  FIRST_DATA_ROW: 7,          // Row 7 — first pupil row
+  FIRST_DAY_COL:  4,          // Column D — always day 1
+  MONTH_CELL:    "AA1",       // Merged AA1:AG1 — month name e.g. "May"
+  YEAR_CELL:     "AA2",       // Merged AA2:AG4 — year e.g. "2026"
+  REGISTER_CELL: "O2",        // Merged O2:T2 — "REGISTER" label
+  REGISTER_TEXT: "REGISTER",
 };
 ```
 
