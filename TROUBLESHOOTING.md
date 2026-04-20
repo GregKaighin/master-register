@@ -1,5 +1,9 @@
 # Troubleshooting
 
+Unless noted otherwise, these issues apply to both `master_register.gs` and `individual_register.gs`.
+
+---
+
 ## The trigger didn't fire on the 1st
 
 **Check the trigger exists:**
@@ -26,8 +30,6 @@ The script looks for the most recent tab whose name matches `YY/MM` (e.g. `26/04
 
 ## Tab created with the wrong number of day columns
 
-**Symptom:** The new tab has too many or too few day columns.
-
 **Most likely cause:** The source tab has hidden columns that confused the column count.
 
 The script counts only *visible* day columns from the source. If a previous test run left a tab with hidden columns in an unexpected state, delete that tab and re-run from a clean source.
@@ -50,7 +52,7 @@ This can happen if the new month is more than one day longer than the source tab
 
 The script removes the right border from the old last day column and applies it to the new one. If the border looks wrong:
 
-- **Missing:** The `setBorder` call for the new last column may not have run. Check the log for `Applied right border to data rows at: …`.
+- **Missing:** Check the log for `Applied right border at column …` — if absent, an earlier error interrupted execution.
 - **Doubled:** The old border wasn't removed. The log should show `Removed right border from old last col: …` — if that line is absent, the `daysInMonth !== prevDayCols` condition wasn't met, meaning the column count was read incorrectly.
 
 ---
@@ -70,6 +72,16 @@ The script clears `AA1` and `AA2` then writes the new values using `SpreadsheetA
 
 ---
 
+## IMPORTRANGE formulas not updated *(individual_register.gs only)*
+
+The script scans columns B–C from row 7 downward and replaces the old master tab name with the new one in any formula containing `"oldTabName!`. If formulas still reference the old tab after the run:
+
+- Check the log for `Updated N IMPORTRANGE formula(s): …` — if `N` is 0, the script found no matching formulas.
+- Confirm `CFG.FORMULA_START_ROW` matches the spreadsheet row where the first formula lives (default: 7).
+- Confirm the formula contains the tab name in the form `"YY/MM!` (with a leading double-quote and trailing exclamation mark). If the formula structure differs, the match pattern won't find it.
+
+---
+
 ## Partial/broken tab was left behind
 
 The script wraps all operations in a `try/catch`. If an error occurs mid-run, it deletes the partial tab and re-throws the error, so the spreadsheet is left clean. If a partial tab does exist, it means the delete itself failed (rare). Delete it manually, fix the underlying error, and run again.
@@ -78,7 +90,7 @@ The script wraps all operations in a `try/catch`. If an error occurs mid-run, it
 
 ## Script changes aren't taking effect
 
-After editing the script, save with Ctrl+S and re-run from the dropdown. Refreshing the spreadsheet alone does not reload script logic — you must save in the Apps Script editor.
+After editing the script, save with Ctrl+S and re-run from the dropdown. Refreshing the spreadsheet alone does not reload script logic.
 
 ---
 

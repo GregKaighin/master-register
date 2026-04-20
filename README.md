@@ -1,9 +1,14 @@
-# Piano Lessons with Greg Kaighin — Master Register Script
+# Piano Lessons with Greg Kaighin — Monthly Register Scripts
 
-A Google Apps Script that automatically creates a new monthly register tab on the 1st of each month.
+Two Google Apps Scripts that automatically create a new monthly register tab on the 1st of each month.
 
-## What it does
+## Scripts
 
+### `master_register.gs` — Master Register
+
+For the main attendance register covering all pupils.
+
+**What it does:**
 - Copies the most recent `YY/MM` tab as the template for the new month
 - Names the new tab in `YY/MM` format (e.g. `26/05`)
 - Inserts or hides day columns to match the new month's exact length (28–31 days)
@@ -15,24 +20,37 @@ A Google Apps Script that automatically creates a new monthly register tab on th
 - Places the new tab at position 1 (leftmost)
 - Deletes the partial tab automatically if anything goes wrong
 
+---
+
+### `individual_register.gs` — Individual Pupil Registers
+
+For individual pupil registers (single pupils, or siblings/parents sharing one register). Identical to the master register script with one addition:
+
+- Updates `IMPORTRANGE` formulas in columns B–C to reference the new master register tab
+
+The formulas pull attendance data from the master register into each individual register. They contain the master tab name twice (data range + filter column), so both occurrences are updated on each run.
+
+---
+
 ## Setup
 
-1. Open your Master Register spreadsheet in Google Sheets.
-2. Click **Extensions → Apps Script**.
-3. Delete any existing code and paste the entire contents of `master_register.gs`.
-4. Click **Save** (Ctrl+S).
-5. In the function dropdown, select **`installTrigger`** and click **▶ Run**.
-6. Approve the permissions dialog — this is a one-time step.
+Both scripts are set up the same way:
 
-The trigger is now installed. It fires automatically at midnight on the 1st of each month in your spreadsheet's timezone.
+1. Open the relevant Google Sheet → **Extensions → Apps Script**.
+2. Delete any existing code and paste the entire contents of the script file.
+3. Click **Save** (Ctrl+S).
+4. In the function dropdown, select **`installTrigger`** and click **▶ Run**.
+5. Approve the permissions dialog — this is a one-time step.
+
+The trigger fires automatically at midnight on the 1st of each month in the spreadsheet's timezone.
+
+See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed instructions.
 
 ## Testing
 
-To test without waiting for the 1st of the month:
+**`testCreateTab`** — simulates the 1st of next month.
 
-**`testCreateTab`** — simulates the 1st of next month. Select it in the dropdown and click ▶ Run.
-
-**`testCreateTabForMonth`** — simulates the 1st of any specific month. Edit the `YEAR` and `MONTH` constants at the top of the function, then run it.
+**`testCreateTabForMonth`** — simulates the 1st of any specific month. Edit `YEAR` and `MONTH` at the top of the function, then run it.
 
 ```javascript
 function testCreateTabForMonth() {
@@ -44,43 +62,44 @@ function testCreateTabForMonth() {
 
 ## Configuration
 
-The `CFG` object at the top of the script is pre-configured for this spreadsheet layout:
+Both scripts use a `CFG` object pre-configured for this spreadsheet layout. Only change it if the layout changes.
 
+**`master_register.gs`:**
 ```javascript
 const CFG = {
   DAY_NUMBER_ROW: 6,          // Row 6 — day numbers 1…31 (D6:AH6)
   FIRST_DATA_ROW: 7,          // Row 7 — first pupil row
   FIRST_DAY_COL:  4,          // Column D — always day 1
-  MONTH_CELL:    "AA1",       // Merged AA1:AG1 — month name e.g. "May"
-  YEAR_CELL:     "AA2",       // Merged AA2:AG4 — year e.g. "2026"
-  REGISTER_CELL: "O2",        // Merged O2:T2 — "REGISTER" label
+  MONTH_CELL:    "AA1",       // Month name e.g. "May"
+  YEAR_CELL:     "AA2",       // Year e.g. "2026"
+  REGISTER_CELL: "O2",        // "REGISTER" label
   REGISTER_TEXT: "REGISTER",
 };
 ```
 
-If your spreadsheet layout ever changes, update these values to match.
+**`individual_register.gs`** — same as above, plus:
+```javascript
+  PUPIL_SCAN_COL:    2,       // Column B — scanned to find the last pupil row
+  FORMULA_START_ROW: 7,       // First row containing IMPORTRANGE formulas
+  FORMULA_NUM_COLS:  2,       // Number of formula columns (B and C)
+```
 
 ## How it handles different month lengths
 
 | Scenario | Action |
 |---|---|
-| New month is longer than source | Inserts the extra columns after the last visible day column, copies formatting, adds inner grey borders |
-| New month is shorter than source | Hides the surplus columns and clears their content |
+| New month is longer than source | Inserts extra columns, copies formatting, adds inner grey borders |
+| New month is shorter than source | Hides surplus columns and clears their content |
 | Same length | No column changes needed |
-
-The last pupil row is detected automatically by scanning column A downward — no manual configuration needed.
 
 ## File structure
 
 ```
-master-register/
-├── master_register.gs    # Main script
-├── monthly_register.gs   # Legacy / reference copy
+├── master_register.gs       # Master register script
+├── individual_register.gs   # Individual pupil register script
 ├── README.md
 ├── SETUP_GUIDE.md
 ├── TROUBLESHOOTING.md
-├── EXAMPLES.md
-├── CHANGELOG.md
 └── LICENSE
 ```
 
