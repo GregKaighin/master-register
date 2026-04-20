@@ -1,176 +1,74 @@
-# Setup Guide - Master Register Script
+# Setup Guide
 
-This guide walks you through installing and configuring the Master Register script for your specific spreadsheet.
+## Step 1 — Open Apps Script
 
-## Prerequisites
+1. Open your Master Register spreadsheet in Google Sheets.
+2. Click **Extensions → Apps Script**.
+3. A new browser tab opens with the script editor.
 
-- Google Sheets account
-- Access to your Master Register spreadsheet
-- Basic familiarity with Google Sheets
-- Read and write permissions on the spreadsheet
+## Step 2 — Paste the script
 
-## Installation Steps
+1. Select all existing code in the editor (Ctrl+A).
+2. Delete it.
+3. Copy the entire contents of `master_register.gs` from this repository.
+4. Paste it into the editor (Ctrl+V).
+5. Save (Ctrl+S). The title bar should show the project name.
 
-### Step 1: Open Google Apps Script Editor
+## Step 3 — Install the trigger
 
-1. Open your Master Register spreadsheet in Google Sheets
-2. Click **Extensions** in the menu bar
-3. Click **Apps Script**
-4. A new tab will open with the script editor
+1. In the function dropdown (next to the ▶ Run button), select **`installTrigger`**.
+2. Click **▶ Run**.
+3. A permissions dialog appears — click **Review permissions**, select your Google account, and click **Allow**.
+4. The trigger is now installed. You will see this in the log:
 
-### Step 2: Paste the Script
+   ```
+   ✅ Trigger installed — fires on the 1st of each month at midnight.
+   ```
 
-1. In the Apps Script editor, you'll see code in the main panel
-2. **Select all** existing code (Ctrl+A / Cmd+A)
-3. **Delete** it
-4. **Copy** the entire contents of `master_register.gs` from this repository
-5. **Paste** it into the editor (Ctrl+V / Cmd+V)
-6. **Save** the script (Ctrl+S / Cmd+S)
+   You only need to do this once. To confirm it exists, click the **Triggers** icon (clock) in the left sidebar — you should see `createMonthlyTab` listed with a monthly time-based trigger.
 
-### Step 3: Locate Your Configuration Values
+## Step 4 — Test it
 
-You need to find 6 values that match your spreadsheet layout. These go in the `CFG` object at the top of the script.
+Run **`testCreateTab`** to simulate the 1st of next month:
 
-#### Finding monthCell
+1. Select **`testCreateTab`** in the function dropdown.
+2. Click **▶ Run**.
+3. Switch back to your spreadsheet — a new `YY/MM` tab should appear at the far left.
+4. Check the new tab:
+   - Month name and year in the header are correct.
+   - Day numbers in row 6 match the month's length.
+   - Attendance data is cleared.
+   - Pupil names and formatting are intact.
+   - Borders are correct, including the right border on the last day column.
 
-1. In your spreadsheet, find the cell containing your current month name (e.g., "April")
-2. Click on that cell
-3. Look at the **Name Box** in the top-left corner of your spreadsheet (it shows coordinates like "AH1")
-4. **Note this address** — this is your `monthCell` value
+To test a specific month (e.g. February or December), use **`testCreateTabForMonth`** instead:
 
-Example: If the Name Box shows `AH1`, then `monthCell: 'AH1'`
+1. Open the script editor and find `testCreateTabForMonth` near the bottom.
+2. Set the `YEAR` and `MONTH` constants to the month you want to test.
+3. Save, then run the function.
 
-#### Finding yearCell
+## Step 5 — Go live
 
-1. Find the cell containing your current year (e.g., "2026")
-2. Click on that cell
-3. Check the Name Box for the cell address
-4. **Note this address** — this is your `yearCell` value
+No further action needed. The trigger fires automatically at midnight on the 1st of each month in the spreadsheet's timezone. Each run creates the new tab and logs its progress — you can review logs via **Execution log** in Apps Script.
 
-Example: If the Name Box shows `AH2`, then `yearCell: 'AH2'`
+## Reinstalling the trigger
 
-#### Finding dayNumbersRow
+If you ever need to reinstall (e.g. after copying the script to a new spreadsheet), just run `installTrigger` again. It removes any existing `createMonthlyTab` trigger before creating a new one, so there's no risk of duplicates.
 
-1. Look for the row containing your day numbers (1, 2, 3, 4, 5... across columns)
-2. Click any cell in that row that contains a day number
-3. The Name Box will show something like `D6` — the number after the letter is your row number
-4. **Note the row number** — this is your `dayNumbersRow` value
+## Configuration
 
-Example: If the Name Box shows `D6`, then `dayNumbersRow: 6`
-
-#### Finding firstDayCol
-
-1. Find the first cell in your lesson date grid (where day 1's lessons go)
-2. Click on that cell
-3. The Name Box shows something like `D7` — the letter is your column
-4. Convert the letter to a number:
-   - A = 1, B = 2, C = 3, D = 4, E = 5, F = 6, etc.
-   - Or count columns from the left
-5. **Note this number** — this is your `firstDayCol` value
-
-Example: If the Name Box shows `D7`, then `firstDayCol: 4`
-
-#### Finding firstPupilRow
-
-1. Locate the first row containing a pupil name or data
-2. Click on that row
-3. The Name Box shows the row number (e.g., `D7` = row 7)
-4. **Note the row number** — this is your `firstPupilRow` value
-
-Example: If the Name Box shows `A7`, then `firstPupilRow: 7`
-
-#### Finding lastPupilRow
-
-1. Scroll down to the last row containing pupil data
-2. Click that row
-3. The Name Box shows the row number
-4. **Note this number** — this is your `lastPupilRow` value
-
-Example: If the Name Box shows `A48`, then `lastPupilRow: 48`
-
-### Step 4: Update the Configuration
-
-1. In the Apps Script editor, find the `CFG` object at the top (lines ~16-22)
-2. Update each value with the numbers you found:
+The `CFG` object is pre-configured for this spreadsheet. Only change it if the layout of the register changes:
 
 ```javascript
 const CFG = {
-  monthCell:     'AH1', // ← Your month cell
-  yearCell:      'AH2', // ← Your year cell
-  dayNumbersRow: 6,     // ← Your day numbers row
-  firstDayCol:   4,     // ← Your first day column number
-  firstPupilRow: 7,     // ← Your first pupil row
-  lastPupilRow:  48,    // ← Your last pupil row
+  DAY_NUMBER_ROW:  6,        // Row containing day numbers 1…31
+  FIRST_DATA_ROW:  7,        // First row with pupil data
+  FIRST_DAY_COL:   4,        // Column number of day 1 (D = 4)
+  MONTH_CELL:     "AA1",     // Cell displaying the month name
+  YEAR_CELL:      "AA2",     // Cell displaying the year
+  REGISTER_CELL:  "O2",      // Cell containing the "REGISTER" label
+  REGISTER_TEXT:  "REGISTER",
 };
 ```
 
-### Step 5: Save and Test
-
-1. **Save** the script (Ctrl+S)
-2. **Close** the Apps Script tab
-3. **Refresh** your spreadsheet (F5 or Cmd+R)
-4. Look for a new **"Register"** menu in the top menu bar
-5. Click **Register** → **Create next month tab** to test
-6. If it works, you'll see a confirmation message with the new sheet name
-
-## Verification Checklist
-
-Before using the script in production, verify:
-
-- ✅ The "Register" menu appears after refresh
-- ✅ Configuration values are saved in the script
-- ✅ Month and year cells contain correct values
-- ✅ You can successfully create a test sheet
-- ✅ New sheet has the correct month/year in the header
-- ✅ Day columns match the new month's day count
-- ✅ Pupil names are preserved
-- ✅ Attendance data is cleared
-- ✅ Formatting and formulas are maintained
-
-## Common Setup Issues
-
-### "Register" menu doesn't appear
-
-1. Check that you saved the script (Ctrl+S in Apps Script editor)
-2. Refresh your spreadsheet completely (F5 or Cmd+R)
-3. Try closing and reopening the spreadsheet
-4. Check browser console for errors (F12 → Console tab)
-
-### Configuration values are wrong
-
-1. Recheck each cell in your spreadsheet using the Name Box
-2. Make sure you're looking at the correct sheet (if you have multiple sheets)
-3. Verify month name is spelled correctly (case-sensitive)
-4. Year should be a 4-digit number
-
-### Permission denied errors
-
-1. Make sure you have edit access to the spreadsheet
-2. Try refreshing the page
-3. Sign out and back into your Google account
-4. Check sharing settings on the spreadsheet
-
-### Script errors when clicking "Create next month tab"
-
-1. Verify all configuration values are correct
-2. Check that month and year cells contain valid data
-3. Ensure no sheet with next month's name already exists
-4. Check the browser console (F12) for detailed error messages
-
-## Getting Help
-
-If you encounter issues:
-
-1. Check [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for common problems
-2. Review [EXAMPLES.md](EXAMPLES.md) to compare your layout
-3. Verify each configuration value matches exactly
-4. Check the error message for clues
-
-## Next Steps
-
-After successful setup:
-
-1. Test creating a sheet for next month
-2. Verify the new sheet is formatted correctly
-3. Add any month-specific data before archiving the old sheet
-4. Consider setting a calendar reminder to create sheets monthly
+To find column numbers: A=1, B=2, C=3, D=4 … Z=26, AA=27, AB=28 … AH=34.
